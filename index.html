@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>太空射击游戏 - Space Shooter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        header {
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00dbde, #fc00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.8;
+            margin-bottom: 30px;
+        }
+        
+        .game-container {
+            position: relative;
+            margin: 0 auto;
+        }
+        
+        canvas {
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.3);
+            display: block;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            font-size: 1.2rem;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        
+        .controls {
+            margin-top: 25px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        button {
+            padding: 12px 25px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            background: linear-gradient(90deg, #00dbde, #fc00ff);
+            color: white;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(1px);
+        }
+        
+        .instructions {
+            margin-top: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: left;
+            max-width: 600px;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: #00ff88;
+        }
+        
+        .instructions ul {
+            list-style-position: inside;
+            margin-left: 10px;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+        
+        .mobile-controls {
+            display: none;
+            margin-top: 20px;
+            gap: 20px;
+        }
+        
+        .mobile-btn {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+        }
+        
+        footer {
+            margin-top: 40px;
+            font-size: 0.9rem;
+            opacity: 0.7;
+            text-align: center;
+        }
+        
+        footer a {
+            color: #00ff88;
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            canvas {
+                width: 100%;
+                height: auto;
+            }
+            
+            .mobile-controls {
+                display: flex;
+            }
+            
+            .stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            button {
+                padding: 10px 20px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 太空射击游戏</h1>
+            <p class="subtitle">保护太空，消灭陨石，获得最高分！</p>
+        </header>
+        
+        <div class="game-container">
+            <canvas id="gameCanvas" width="800" height="500"></canvas>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-label">分数</div>
+                <div id="score" class="stat-value">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">生命值</div>
+                <div id="lives" class="stat-value">3</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">等级</div>
+                <div id="level" class="stat-value">1</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">最高分</div>
+                <div id="highScore" class="stat-value">0</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn">开始游戏</button>
+            <button id="pauseBtn">暂停/继续</button>
+            <button id="restartBtn">重新开始</button>
+            <button id="soundBtn">🔊 音效</button>
+        </div>
+        
+        <div class="mobile-controls">
+            <button class="mobile-btn" id="leftBtn">← 左移</button>
+            <button class="mobile-btn" id="shootBtn">🔥 射击</button>
+            <button class="mobile-btn" id="rightBtn">右移 →</button>
+        </div>
+        
+        <div class="instructions">
+            <h3>游戏说明：</h3>
+            <ul>
+                <li><strong>控制飞船：</strong>使用键盘 ← → 键或屏幕按钮左右移动飞船</li>
+                <li><strong>发射子弹：</strong>按空格键或点击"射击"按钮发射子弹</li>
+                <li><strong>游戏目标：</strong>消灭下落的陨石，避免被陨石击中</li>
+                <li><strong>得分规则：</strong>每消灭一个陨石得10分，连续消灭有额外加分</li>
+                <li><strong>生命值：</strong>初始3条命，被陨石击中减少1条命，生命值为0时游戏结束</li>
+                <li><strong>等级提升：</strong>每得100分升一级，陨石下落速度会加快</li>
+            </ul>
+        </div>
+        
+        <footer>
+            <p>使用纯HTML5 Canvas + JavaScript构建 | 
+                <a href="https://github.com" target="_blank">GitHub仓库</a> | 
+                <a href="https://pages.github.com" target="_blank">GitHub Pages托管</a>
+            </p>
+            <p>© 2026 太空射击游戏 - 任何人都可以访问和游玩</p>
+        </footer>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
