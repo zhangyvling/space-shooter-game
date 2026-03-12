@@ -18,10 +18,12 @@ class SpaceShooterGame {
             y: this.canvas.height - 80,
             width: 50,
             height: 60,
-            speed: 7,
+            speed: 8, // 稍微提高移动速度
             color: '#00ff88',
             isMovingLeft: false,
-            isMovingRight: false
+            isMovingRight: false,
+            autoShoot: false, // 自动射击
+            lastAutoShot: 0
         };
         
         // 子弹数组
@@ -61,16 +63,34 @@ class SpaceShooterGame {
         this.rapidFireTime = 0;
         this.slowTime = 0;
         
-        // 音效
+        // BOSS系统
+        this.boss = null;
+        this.bossActive = false;
+        this.bossHealth = 0;
+        this.bossMaxHealth = 0;
+        this.bossSpawnScore = 500; // 500分后出现BOSS
+        this.bossPattern = 0;
+        this.bossPatternTime = 0;
+        this.bossBullets = [];
+        
+        // 音效和音乐
         this.soundEnabled = true;
+        this.musicEnabled = true;
         this.sounds = {
             shoot: this.createSound(800, 0.1, 0.1),
             explosion: this.createSound(200, 0.2, 0.3),
             hit: this.createSound(300, 0.1, 0.2),
             gameOver: this.createSound(150, 0.3, 0.5),
             powerUp: this.createSound(600, 0.2, 0.2),
-            shield: this.createSound(400, 0.3, 0.3)
+            shield: this.createSound(400, 0.3, 0.3),
+            bossSpawn: this.createSound(100, 0.5, 0.4),
+            bossHit: this.createSound(150, 0.2, 0.3),
+            bossDefeat: this.createSound(80, 0.8, 0.5)
         };
+        
+        // 背景音乐（使用Web Audio API生成）
+        this.bgMusic = null;
+        this.bgMusicPlaying = false;
         
         // 初始化
         this.init();
@@ -106,6 +126,97 @@ class SpaceShooterGame {
         };
     }
     
+    // 创建背景音乐
+    createBackgroundMusic() {
+        if (!this.musicEnabled || this.bgMusicPlaying) return;
+        
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // 创建主振荡器（太空氛围音）
+            const mainOsc = audioContext.createOscillator();
+            const mainGain = audioContext.createGain();
+            
+            // 创建低音振荡器
+            const bassOsc = audioContext.createOscillator();
+            const bassGain = audioContext.createGain();
+            
+            // 创建旋律振荡器
+            const melodyOsc = audioContext.createOscillator();
+            const melodyGain = audioContext.createGain();
+            
+            // 配置主音（太空氛围）
+            mainOsc.frequency.value = 110;
+            mainOsc.type = 'sine';
+            mainGain.gain.value = 0.02;
+            
+            // 配置低音
+            bassOsc.frequency.value = 55;
+            bassOsc.type = 'sawtooth';
+            bassGain.gain.value = 0.01;
+            
+            // 配置旋律（随机变化）
+            melodyOsc.frequency.value = 440;
+            melodyOsc.type = 'triangle';
+            melodyGain.gain.value = 0.015;
+            
+            // 连接节点
+            mainOsc.connect(mainGain);
+            bassOsc.connect(bassGain);
+            melodyOsc.connect(melodyGain);
+            
+            mainGain.connect(audioContext.destination);
+            bassGain.connect(audioContext.destination);
+            melodyGain.connect(audioContext.destination);
+            
+            // 开始播放
+            mainOsc.start();
+            bassOsc.start();
+            melodyOsc.start();
+            
+            // 保存引用
+            this.bgMusic = {
+                context: audioContext,
+                oscillators: [mainOsc, bassOsc, melodyOsc],
+                gains: [mainGain, bassGain, melodyGain]
+            };
+            
+            this.bgMusicPlaying = true;
+            
+            // 每8秒改变一次旋律频率
+            setInterval(() => {
+                if (this.bgMusic && this.gameState === 'playing') {
+                    const notes = [329.63, 392.00, 440.00, 493.88, 523.25, 587.33];
+                    const randomNote = notes[Math.floor(Math.random() * notes.length)];
+                    melodyOsc.frequency.linearRampToValueAtTime(randomNote, audioContext.currentTime + 1);
+                }
+            }, 8000);
+            
+        } catch (e) {
+            console.log('背景音乐创建失败:', e);
+        }
+    }
+    
+    // 停止背景音乐
+    stopBackgroundMusic() {
+        if (this.bgMusic) {
+            this.bgMusic.oscillators.forEach(osc => osc.stop());
+            this.bgMusic = null;
+            this.bgMusicPlaying = false;
+        }
+    }
+    
+    // 切换背景音乐
+    toggleMusic() {
+        this.musicEnabled = !this.musicEnabled;
+        if (this.musicEnabled && this.gameState === 'playing') {
+            this.createBackgroundMusic();
+        } else {
+            this.stopBackgroundMusic();
+        }
+        return this.musicEnabled;
+    }
+    
     init() {
         // 清空数组
         this.bullets = [];
@@ -124,12 +235,18 @@ class SpaceShooterGame {
         document.addEventListener('keydown', (e) => {
             switch(e.key) {
                 case 'ArrowLeft':
+                case 'a':
+                case 'A':
                     this.player.isMovingLeft = true;
                     break;
                 case 'ArrowRight':
+                case 'd':
+                case 'D':
                     this.player.isMovingRight = true;
                     break;
                 case ' ':
+                case 'z':
+                case 'Z':
                     this.shoot();
                     e.preventDefault();
                     break;
@@ -141,6 +258,26 @@ class SpaceShooterGame {
                     if (this.gameState === 'menu' || this.gameState === 'gameover') {
                         this.startGame();
                     }
+                    break;
+                case 'm':
+                case 'M':
+                    this.toggleMusic();
+                    document.getElementById('musicBtn').textContent = 
+                        this.musicEnabled ? '🎵 音乐' : '🔇 静音';
+                    break;
+                case 's':
+                case 'S':
+                    this.player.autoShoot = !this.player.autoShoot;
+                    document.getElementById('autoBtn').textContent = 
+                        this.player.autoShoot ? '🔫 自动射击' : '🎯 手动射击';
+                    break;
+                case '1':
+                    // 调试：增加分数
+                    if (e.ctrlKey) this.score += 100;
+                    break;
+                case '2':
+                    // 调试：生成BOSS
+                    if (e.ctrlKey) this.bossSpawnScore = this.score;
                     break;
             }
         });
@@ -173,6 +310,18 @@ class SpaceShooterGame {
         
         document.getElementById('soundBtn').addEventListener('click', () => {
             this.toggleSound();
+        });
+        
+        document.getElementById('musicBtn').addEventListener('click', () => {
+            const enabled = this.toggleMusic();
+            document.getElementById('musicBtn').textContent = 
+                enabled ? '🎵 音乐' : '🔇 静音';
+        });
+        
+        document.getElementById('autoBtn').addEventListener('click', () => {
+            this.player.autoShoot = !this.player.autoShoot;
+            document.getElementById('autoBtn').textContent = 
+                this.player.autoShoot ? '🔫 自动射击' : '🎯 手动射击';
         });
         
         // 移动端控制
@@ -241,18 +390,48 @@ class SpaceShooterGame {
         this.shotDelay = 300;
         this.powerUps = [];
         
+        // 重置BOSS系统
+        this.boss = null;
+        this.bossActive = false;
+        this.bossHealth = 0;
+        this.bossSpawnScore = 500;
+        this.bossBullets = [];
+        
+        // 重置玩家状态
+        this.player.autoShoot = false;
+        
+        // 开始背景音乐
+        if (this.musicEnabled) {
+            this.createBackgroundMusic();
+        }
+        
         this.init();
         this.updateUI();
         document.getElementById('startBtn').textContent = '重新开始';
+        document.getElementById('autoBtn').textContent = '🎯 手动射击';
     }
     
     togglePause() {
         if (this.gameState === 'playing') {
             this.gameState = 'paused';
             document.getElementById('pauseBtn').textContent = '继续游戏';
+            
+            // 暂停时降低背景音乐音量
+            if (this.bgMusic) {
+                this.bgMusic.gains.forEach(gain => {
+                    gain.gain.value = 0.01;
+                });
+            }
         } else if (this.gameState === 'paused') {
             this.gameState = 'playing';
             document.getElementById('pauseBtn').textContent = '暂停游戏';
+            
+            // 恢复背景音乐音量
+            if (this.bgMusic) {
+                this.bgMusic.gains[0].gain.value = 0.02;
+                this.bgMusic.gains[1].gain.value = 0.01;
+                this.bgMusic.gains[2].gain.value = 0.015;
+            }
         }
     }
     
@@ -332,6 +511,173 @@ class SpaceShooterGame {
         });
     }
     
+    spawnBoss() {
+        if (this.bossActive || this.score < this.bossSpawnScore) return;
+        
+        this.bossActive = true;
+        this.bossHealth = 100 + (this.level * 20);
+        this.bossMaxHealth = this.bossHealth;
+        
+        this.boss = {
+            x: this.canvas.width / 2 - 75,
+            y: 50,
+            width: 150,
+            height: 100,
+            speed: 1,
+            direction: 1,
+            color: '#ff3333',
+            pattern: 0,
+            patternTime: Date.now(),
+            lastShot: Date.now()
+        };
+        
+        // 停止生成普通陨石和道具
+        this.asteroidDelay = 999999;
+        this.powerUpDelay = 999999;
+        
+        this.sounds.bossSpawn();
+        
+        // 更新BOSS生成分数阈值
+        this.bossSpawnScore = this.score + 300; // 每300分出现一次BOSS
+    }
+    
+    updateBoss() {
+        if (!this.bossActive || !this.boss) return;
+        
+        const now = Date.now();
+        
+        // BOSS移动模式
+        this.boss.x += this.boss.speed * this.boss.direction;
+        
+        // 边界检测
+        if (this.boss.x <= 0 || this.boss.x + this.boss.width >= this.canvas.width) {
+            this.boss.direction *= -1;
+            this.boss.pattern = (this.boss.pattern + 1) % 3;
+            this.boss.patternTime = now;
+        }
+        
+        // BOSS攻击模式
+        if (now - this.boss.lastShot > 1000) { // 每秒攻击一次
+            this.bossAttack();
+            this.boss.lastShot = now;
+        }
+        
+        // 更新BOSS子弹
+        for (let i = this.bossBullets.length - 1; i >= 0; i--) {
+            const bullet = this.bossBullets[i];
+            
+            // 追踪子弹逻辑
+            if (bullet.isTracking) {
+                const playerCenterX = this.player.x + this.player.width / 2;
+                const playerCenterY = this.player.y + this.player.height / 2;
+                
+                const targetAngle = Math.atan2(
+                    playerCenterY - bullet.y,
+                    playerCenterX - bullet.x
+                );
+                
+                // 平滑转向
+                const turnSpeed = 0.1;
+                bullet.angle += (targetAngle - bullet.angle) * turnSpeed;
+                
+                bullet.x += Math.cos(bullet.angle) * bullet.speed;
+                bullet.y += Math.sin(bullet.angle) * bullet.speed;
+            } else {
+                bullet.y += bullet.speed;
+            }
+            
+            // 移除超出屏幕的子弹
+            if (bullet.y > this.canvas.height || bullet.x < 0 || bullet.x > this.canvas.width) {
+                this.bossBullets.splice(i, 1);
+            }
+        }
+        
+        // 检查BOSS是否被击败
+        if (this.bossHealth <= 0) {
+            this.defeatBoss();
+        }
+    }
+    
+    bossAttack() {
+        if (!this.boss) return;
+        
+        const bossCenterX = this.boss.x + this.boss.width / 2;
+        const bossCenterY = this.boss.y + this.boss.height;
+        
+        // 根据模式选择攻击方式
+        switch(this.boss.pattern) {
+            case 0: // 三发散射
+                for (let i = -1; i <= 1; i++) {
+                    this.bossBullets.push({
+                        x: bossCenterX + (i * 20),
+                        y: bossCenterY,
+                        width: 8,
+                        height: 20,
+                        speed: 4,
+                        color: '#ff6666'
+                    });
+                }
+                break;
+                
+            case 1: // 五发扇形
+                for (let i = -2; i <= 2; i++) {
+                    this.bossBullets.push({
+                        x: bossCenterX + (i * 15),
+                        y: bossCenterY,
+                        width: 6,
+                        height: 18,
+                        speed: 3 + Math.abs(i) * 0.5,
+                        color: '#ff9966'
+                    });
+                }
+                break;
+                
+            case 2: // 追踪玩家
+                const playerCenterX = this.player.x + this.player.width / 2;
+                const angle = Math.atan2(
+                    this.player.y - bossCenterY,
+                    playerCenterX - bossCenterX
+                );
+                
+                this.bossBullets.push({
+                    x: bossCenterX,
+                    y: bossCenterY,
+                    width: 10,
+                    height: 25,
+                    speed: 3,
+                    color: '#ff3333',
+                    angle: angle,
+                    isTracking: true
+                });
+                break;
+        }
+    }
+    
+    defeatBoss() {
+        this.bossActive = false;
+        this.boss = null;
+        
+        // 恢复普通陨石和道具生成
+        this.asteroidDelay = 1500;
+        this.powerUpDelay = 10000;
+        
+        // BOSS击败奖励
+        this.score += 200;
+        this.lives = Math.min(this.lives + 2, 10); // 奖励2条命
+        
+        // 生成大量道具
+        for (let i = 0; i < 5; i++) {
+            setTimeout(() => {
+                if (this.gameState === 'playing') {
+                    this.createPowerUp();
+                }
+            }, i * 300);
+        }
+        
+        this.sounds.bossDefeat();
+        this.updateUI();
+    }
+    
     updatePlayer() {
         if (this.player.isMovingLeft && this.player.x > 0) {
             this.player.x -= this.player.speed;
@@ -339,6 +685,17 @@ class SpaceShooterGame {
         
         if (this.player.isMovingRight && this.player.x < this.canvas.width - this.player.width) {
             this.player.x += this.player.speed;
+        }
+        
+        // 自动射击
+        if (this.player.autoShoot && this.gameState === 'playing') {
+            const now = Date.now();
+            const autoShotDelay = this.rapidFire ? 150 : 300;
+            
+            if (now - this.player.lastAutoShot > autoShotDelay) {
+                this.shoot();
+                this.player.lastAutoShot = now;
+            }
         }
     }
     
@@ -548,6 +905,14 @@ class SpaceShooterGame {
         this.slowTime = 0;
         this.shotDelay = 300;
         
+        // 停止背景音乐
+        this.stopBackgroundMusic();
+        
+        // 重置BOSS
+        this.boss = null;
+        this.bossActive = false;
+        this.bossBullets = [];
+        
         this.sounds.gameOver();
         this.updateUI();
     }
@@ -557,6 +922,25 @@ class SpaceShooterGame {
         document.getElementById('lives').textContent = this.lives;
         document.getElementById('level').textContent = this.level;
         document.getElementById('highScore').textContent = this.highScore;
+        
+        // 更新BOSS状态显示
+        let bossStatus = '准备中';
+        let bossColor = '#00ff88';
+        
+        if (this.bossActive) {
+            bossStatus = '战斗中';
+            bossColor = '#ff3333';
+        } else if (this.score >= this.bossSpawnScore) {
+            bossStatus = '即将出现';
+            bossColor = '#ffcc00';
+        } else {
+            const remaining = this.bossSpawnScore - this.score;
+            bossStatus = `${remaining}分后`;
+        }
+        
+        const bossElement = document.getElementById('bossStatus');
+        bossElement.textContent = bossStatus;
+        bossElement.style.color = bossColor;
         
         // 更新连击显示
         if (this.combo > 1 && Date.now() - this.lastComboTime < 2000) {
@@ -714,6 +1098,108 @@ class SpaceShooterGame {
         }
     }
     
+    drawBoss() {
+        if (!this.bossActive || !this.boss) return;
+        
+        this.ctx.save();
+        this.ctx.translate(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2);
+        
+        // 绘制BOSS主体
+        this.ctx.fillStyle = this.boss.color;
+        this.ctx.beginPath();
+        
+        // BOSS形状（外星飞船）
+        this.ctx.moveTo(0, -this.boss.height / 2);
+        this.ctx.lineTo(-this.boss.width / 3, 0);
+        this.ctx.lineTo(-this.boss.width / 2, this.boss.height / 3);
+        this.ctx.lineTo(0, this.boss.height / 2);
+        this.ctx.lineTo(this.boss.width / 2, this.boss.height / 3);
+        this.ctx.lineTo(this.boss.width / 3, 0);
+        this.ctx.closePath();
+        this.ctx.fill();
+        
+        // BOSS细节
+        this.ctx.fillStyle = '#ff6666';
+        this.ctx.fillRect(-15, -10, 30, 15); // 驾驶舱
+        
+        this.ctx.fillStyle = '#ff9966';
+        for (let i = -2; i <= 2; i++) {
+            this.ctx.fillRect(i * 20 - 5, 20, 10, 15); // 推进器
+        }
+        
+        // BOSS血条
+        this.ctx.restore();
+        
+        const barWidth = 200;
+        const barHeight = 15;
+        const barX = this.canvas.width / 2 - barWidth / 2;
+        const barY = 10;
+        
+        // 血条背景
+        this.ctx.fillStyle = '#333333';
+        this.ctx.fillRect(barX, barY, barWidth, barHeight);
+        
+        // 当前血量
+        const healthPercent = this.bossHealth / this.bossMaxHealth;
+        this.ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : 
+                            healthPercent > 0.25 ? '#ffff00' : '#ff0000';
+        this.ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+        
+        // 血条边框
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(barX, barY, barWidth, barHeight);
+        
+        // BOSS标签
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('👾 BOSS', this.canvas.width / 2, barY + barHeight + 20);
+    }
+    
+    drawBossBullets() {
+        for (const bullet of this.bossBullets) {
+            this.ctx.save();
+            
+            // 追踪子弹有特殊效果
+            if (bullet.isTracking) {
+                const gradient = this.ctx.createRadialGradient(
+                    bullet.x, bullet.y, 0,
+                    bullet.x, bullet.y, bullet.width * 2
+                );
+                gradient.addColorStop(0, '#ff0000');
+                gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+                
+                this.ctx.fillStyle = gradient;
+                this.ctx.beginPath();
+                this.ctx.arc(bullet.x, bullet.y, bullet.width * 2, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+            
+            // 子弹主体
+            this.ctx.fillStyle = bullet.color;
+            this.ctx.fillRect(
+                bullet.x - bullet.width / 2,
+                bullet.y - bullet.height / 2,
+                bullet.width,
+                bullet.height
+            );
+            
+            // 子弹光晕
+            this.ctx.shadowColor = bullet.color;
+            this.ctx.shadowBlur = 10;
+            this.ctx.fillRect(
+                bullet.x - bullet.width / 2,
+                bullet.y - bullet.height / 2,
+                bullet.width,
+                bullet.height
+            );
+            this.ctx.shadowBlur = 0;
+            
+            this.ctx.restore();
+        }
+    }
+    
     drawBackground() {
         // 星空背景
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
@@ -806,6 +1292,8 @@ class SpaceShooterGame {
         this.drawBullets();
         this.drawAsteroids();
         this.drawPowerUps();
+        this.drawBossBullets();
+        this.drawBoss();
         this.drawPlayer();
         
         // 绘制游戏状态（菜单、暂停、游戏结束）
@@ -865,6 +1353,13 @@ class SpaceShooterGame {
         this.updatePlayer();
         this.updateBullets();
         this.updateAsteroids();
+        
+        // 检查是否需要生成BOSS
+        if (!this.bossActive && this.score >= this.bossSpawnScore) {
+            this.spawnBoss();
+        }
+        
+        this.updateBoss();
         this.checkCollisions();
     }
     

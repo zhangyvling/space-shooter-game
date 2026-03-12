@@ -89,7 +89,11 @@
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 15px;
+            gap: 10px;
+        }
+        
+        .controls button {
+            min-width: 120px;
         }
         
         button {
@@ -202,8 +206,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>🚀 太空射击游戏 - 增强版</h1>
-            <p class="subtitle">收集道具，获得护盾，挑战更高分数！难度已降低，更适合休闲游玩</p>
+            <h1>🚀 太空射击游戏 - 终极版</h1>
+            <p class="subtitle">新增BOSS战、背景音乐、自动射击！体验完整的太空冒险之旅</p>
         </header>
         
         <div class="game-container">
@@ -217,11 +221,15 @@
             </div>
             <div class="stat-item">
                 <div class="stat-label">生命值</div>
-                <div id="lives" class="stat-value">3</div>
+                <div id="lives" class="stat-value">5</div>
             </div>
             <div class="stat-item">
                 <div class="stat-label">等级</div>
                 <div id="level" class="stat-value">1</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">BOSS战</div>
+                <div id="bossStatus" class="stat-value">准备中</div>
             </div>
             <div class="stat-item">
                 <div class="stat-label">最高分</div>
@@ -234,6 +242,8 @@
             <button id="pauseBtn">暂停/继续</button>
             <button id="restartBtn">重新开始</button>
             <button id="soundBtn">🔊 音效</button>
+            <button id="musicBtn">🎵 音乐</button>
+            <button id="autoBtn">🎯 手动射击</button>
         </div>
         
         <div class="mobile-controls">
@@ -245,21 +255,50 @@
         <div class="instructions">
             <h3>游戏说明：</h3>
             <ul>
-                <li><strong>控制飞船：</strong>使用键盘 ← → 键或屏幕按钮左右移动飞船</li>
-                <li><strong>发射子弹：</strong>按空格键或点击"射击"按钮发射子弹</li>
-                <li><strong>游戏目标：</strong>消灭下落的陨石，收集道具，获得最高分</li>
-                <li><strong>得分规则：</strong>每消灭一个陨石得10分，连续消灭有额外加分</li>
-                <li><strong>生命值：</strong>初始5条命，被陨石击中减少1条命，生命值为0时游戏结束</li>
-                <li><strong>等级提升：</strong>每得100分升一级，陨石下落速度会略微加快</li>
+                <li><strong>控制飞船：</strong>
+                    <ul style="margin-left: 20px; margin-top: 5px;">
+                        <li>← → 键 或 A/D 键：左右移动飞船</li>
+                        <li>移动端：使用屏幕按钮控制</li>
+                    </ul>
+                </li>
+                <li><strong>发射子弹：</strong>
+                    <ul style="margin-left: 20px; margin-top: 5px;">
+                        <li>空格键 或 Z 键：手动发射子弹</li>
+                        <li>S 键 或 "手动射击"按钮：切换自动/手动射击模式</li>
+                    </ul>
+                </li>
+                <li><strong>游戏功能：</strong>
+                    <ul style="margin-left: 20px; margin-top: 5px;">
+                        <li>P 键：暂停/继续游戏</li>
+                        <li>M 键：开启/关闭背景音乐</li>
+                        <li>Enter 键：开始/重新开始游戏</li>
+                    </ul>
+                </li>
+                <li><strong>BOSS战系统：</strong>
+                    <ul style="margin-left: 20px; margin-top: 5px;">
+                        <li>每获得500分会出现一个BOSS</li>
+                        <li>BOSS有3种攻击模式：散射、扇形、追踪</li>
+                        <li>击败BOSS奖励200分和2条生命</li>
+                        <li>BOSS战期间暂停普通陨石生成</li>
+                    </ul>
+                </li>
                 <li><strong>道具系统：</strong>
                     <ul style="margin-left: 20px; margin-top: 5px;">
                         <li><span style="color:#ff3333">❤️ 生命道具</span>：增加1条命</li>
                         <li><span style="color:#33ccff">🐌 减速道具</span>：减慢陨石速度10秒</li>
-                        <li><span style="color:#ffcc00">⚡ 快速射击</span>：提高射速10秒</li>
+                        <li><span style="color:#ffcc00">⚡ 快速射击</span>：提高射速，双发子弹10秒</li>
                         <li><span style="color:#9933ff">🛡️ 护盾道具</span>：获得护盾抵挡一次伤害</li>
                     </ul>
                 </li>
-                <li><strong>难度调整：</strong>游戏速度已降低，更适合休闲游玩</li>
+                <li><strong>游戏特色：</strong>
+                    <ul style="margin-left: 20px; margin-top: 5px;">
+                        <li>动态背景音乐，随游戏状态变化</li>
+                        <li>自动射击模式，解放双手</li>
+                        <li>连击系统，连续消灭有额外加分</li>
+                        <li>状态效果实时显示</li>
+                        <li>本地存储最高分记录</li>
+                    </ul>
+                </li>
             </ul>
         </div>
         
